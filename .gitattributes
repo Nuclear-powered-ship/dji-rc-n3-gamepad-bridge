@@ -1,0 +1,22 @@
+# ---- 换行符统一 / Line ending normalisation ----
+# 仓库内统一存 LF，检出时按平台自动转换。
+# Store LF in the repository, convert on checkout per platform.
+# 这样在 Windows 和 Linux 上协作不会出现「整文件都变了」的假 diff。
+# This prevents phantom whole-file diffs when collaborating across platforms.
+
+* text=auto
+
+*.py    text eol=lf
+*.sh    text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.json  text eol=lf
+*.svg   text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# Windows 批处理与 PowerShell 必须是 CRLF，否则 cmd.exe / PowerShell 解析异常。
+# Batch and PowerShell files must be CRLF or cmd.exe misparses them.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf

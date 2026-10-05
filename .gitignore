@@ -1,0 +1,45 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# ---- 工具产物 / tool output ----
+# 根目录运行时产生的报告不提交，但 docs/ 下的实测样本要保留
+/check_report.txt
+/button_map.txt
+# docs/ 下的 docs/button_map.txt 与 docs/env-check-report.txt 是实测样本，刻意入库
+
+# 日志
+*.log
+*.txt.tmp
+t.txt
+run_log.txt
+test_run.txt
+fast_log.txt
+identify_test.txt
+
+# ---- 驱动安装包（体积大且有安全风险，不入库）----
+drivers/
+*.exe
+*.msi
+*.sys
+
+# ---- 编辑器 / IDE ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- 系统 ----
+Thumbs.db
+.DS_Store
+desktop.ini
+$RECYCLE.BIN/

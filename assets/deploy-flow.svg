@@ -1,0 +1,60 @@
+<svg width="100%" viewBox="0 0 680 620" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>RC-N3 Gamepad Bridge deployment flow</title>
+<desc>Four stage deployment: install drivers, deploy bridge, connect remote, launch game with correct ordering.</desc>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<rect x="40" y="30" width="600" height="44" rx="8" fill="#E6F1FB" stroke="#378ADD" stroke-width="0.5"/>
+<text x="60" y="52" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="14" font-weight="500" fill="#0C447C">Stage 1 — Drivers (one time only)</text>
+
+<rect x="40" y="90" width="288" height="56" rx="8" fill="#FAEEDA" stroke="#BA7517" stroke-width="0.5"/>
+<text x="60" y="110" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="13" font-weight="500" fill="#633806">DJI Assistant 2</text>
+<text x="60" y="128" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="12" fill="#854F0B">Only to register the USB driver</text>
+
+<rect x="352" y="90" width="288" height="56" rx="8" fill="#FAEEDA" stroke="#BA7517" stroke-width="0.5"/>
+<text x="372" y="110" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="13" font-weight="500" fill="#633806">ViGEmBus</text>
+<text x="372" y="128" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="12" fill="#854F0B">Many PCs already have it</text>
+
+<rect x="40" y="162" width="600" height="34" rx="6" fill="#FCEBEB" stroke="#E24B4A" stroke-width="0.5"/>
+<text x="58" y="179" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="12" fill="#A32D2D">Never uninstall Assistant 2 — the driver is registered under its install folder and would be removed with it</text>
+
+<path d="M340 196 L340 220" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="40" y="222" width="600" height="44" rx="8" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.5"/>
+<text x="60" y="244" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="14" font-weight="500" fill="#085041">Stage 2 — Deploy the bridge</text>
+
+<rect x="40" y="282" width="288" height="56" rx="8" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.5"/>
+<text x="60" y="302" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="13" font-weight="500" fill="#04342C">run_setup.bat</text>
+<text x="60" y="320" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="12" fill="#0F6E56">Installs vgamepad + pyserial</text>
+
+<rect x="352" y="282" width="288" height="56" rx="8" fill="#E1F5EE" stroke="#1D9E75" stroke-width="0.5"/>
+<text x="372" y="302" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="13" font-weight="500" fill="#04342C">check_env.py</text>
+<text x="372" y="320" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="12" fill="#0F6E56">8-point health check</text>
+
+<path d="M340 338 L340 362" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="40" y="364" width="600" height="44" rx="8" fill="#E6F1FB" stroke="#378ADD" stroke-width="0.5"/>
+<text x="60" y="386" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="14" font-weight="500" fill="#0C447C">Stage 3 — Connect the remote</text>
+
+<rect x="40" y="424" width="288" height="56" rx="8" fill="#E6F1FB" stroke="#378ADD" stroke-width="0.5"/>
+<text x="60" y="444" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="13" font-weight="500" fill="#042C53">Bottom Type-C port</text>
+<text x="60" y="462" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="12" fill="#185FA5">Not the side charging port</text>
+
+<rect x="352" y="424" width="288" height="56" rx="8" fill="#E6F1FB" stroke="#378ADD" stroke-width="0.5"/>
+<text x="372" y="444" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="13" font-weight="500" fill="#042C53">COM6 appears</text>
+<text x="372" y="462" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="12" fill="#185FA5">For Protocol, not For Debug</text>
+
+<path d="M340 480 L340 504" fill="none" stroke="#888780" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="40" y="506" width="600" height="44" rx="8" fill="#EAF3DE" stroke="#639922" stroke-width="0.5"/>
+<text x="60" y="528" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="14" font-weight="500" fill="#27500A">Stage 4 — Bridge first, then game</text>
+
+<rect x="40" y="566" width="288" height="34" rx="6" fill="#EAF3DE" stroke="#639922" stroke-width="0.5"/>
+<text x="60" y="583" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#27500A">1. run_bridge.bat  keep open</text>
+
+<rect x="352" y="566" width="288" height="34" rx="6" fill="#EAF3DE" stroke="#639922" stroke-width="0.5"/>
+<text x="372" y="583" dominant-baseline="central" font-family="system-ui,sans-serif" font-size="12" font-weight="500" fill="#27500A">2. launch the game</text>
+</svg>
