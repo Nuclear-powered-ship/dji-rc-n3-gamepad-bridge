@@ -42,9 +42,62 @@ parser.add_argument("--selftest", action="store_true",
                     help="自检模式：跑若干秒后自动退出并报告")
 parser.add_argument("--selftest-seconds", type=int, default=8,
                     help="自检持续秒数，默认 8")
+
+# ---- 波轮 / 云台波轮行为 ----
+parser.add_argument("--wheel-up", default="lt",
+                    choices=["lt", "dpad-up", "off"],
+                    help="波轮拨上时做什么。lt=左扳机(开镜)，默认；"
+                         "dpad-up=十字键上(旧行为)；off=不响应")
+parser.add_argument("--wheel-down", default="dpad-down",
+                    choices=["dpad-down", "lt", "off"],
+                    help="波轮拨下时做什么。默认 dpad-down=十字键下(切倍率)")
+parser.add_argument("--wheel-pulse-ms", type=int, default=90,
+                    help="扳机脉冲持续毫秒，默认 90。"
+                         "仅在切换模式下生效")
+
+# ---- 波轮触发方式 ----
+parser.add_argument("--wheel-trigger", default="toggle",
+                    choices=["toggle", "hold"],
+                    help="toggle=边缘触发脉冲(适合游戏中设了切换开镜)；"
+                         "hold=按住即保持(适合游戏中设了按住开镜)。默认 toggle")
+
+# ---- 拍照/录像键（Xbox A）的功能 ----
+parser.add_argument("--shutter-key", default="a",
+                    choices=["a", "b", "x", "y", "off"],
+                    help="遥控器拍摄键映射成哪个 Xbox 键。默认 a=跳跃")
+parser.add_argument("--aux-key", default="rb",
+                    choices=["lb", "rb", "y", "back", "off"],
+                    help="遥控器 Fn 键映射成哪个。默认 rb=右肩键")
+
 args = parser.parse_args()
 
 INVERT = {a.lower() for a in args.invert}
+
+BTN_MAP = {
+    "a": vg.XUSB_BUTTON.XUSB_GAMEPAD_A,
+    "b": vg.XUSB_BUTTON.XUSB_GAMEPAD_B,
+    "x": vg.XUSB_BUTTON.XUSB_GAMEPAD_X,
+    "y": vg.XUSB_BUTTON.XUSB_GAMEPAD_Y,
+    "rb": vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_SHOULDER,
+    "lb": vg.XUSB_BUTTON.XUSB_GAMEPAD_LEFT_SHOULDER,
+    "back": vg.XUSB_BUTTON.XUSB_GAMEPAD_BACK,
+}
+
+print("=" * 62)
+print("  配置 / Configuration")
+print("=" * 62)
+print(f"  拍摄键 -> Xbox {args.shutter_key.upper()}      Fn 键 -> Xbox {args.aux_key.upper()}")
+print(f"  波轮上 -> {args.wheel_up}      波轮下 -> {args.wheel_down}")
+print(f"  波轮模式 -> {args.wheel_trigger}"
+      + (f"  脉冲 {args.wheel_pulse_ms} ms" if args.wheel_trigger == "toggle" else ""))
+if INVERT:
+    print(f"  反转轴 -> {', '.join(sorted(INVERT))}")
+if args.deadzone:
+    print(f"  死区 -> {args.deadzone}")
+if args.scale != 1.0:
+    print(f"  缩放 -> {args.scale}")
+print("=" * 62)
+print()
 
 # ================================================================ 状态
 st = {
@@ -239,6 +292,14 @@ in_buf_max = 0
 SEND_INTERVAL = 0.004      # 4ms 发一次请求，约 250Hz
 REPORT_INTERVAL = 1.0
 
+# 波轮判定阈值。原始值范围 -32767 ~ 32767，
+# 中间留一段死区，避免弹簧回中时的抖动导致反复触发。
+WHEEL_UP_TH = 12000
+WHEEL_DOWN_TH = -12000
+
+prev_wheel_zone = "mid"   # 上次波轮在哪个区间：mid / up / down
+pulse_until = 0.0          # 扳机脉冲的结束时刻（perf_counter 基准）
+
 t_start = time.perf_counter()
 
 # 自检模式：记录统计后自动退出
@@ -368,25 +429,66 @@ try:
                     gamepad.release_button(vg_btn)
                 prev_b[key] = cur
 
-            set_btn("b1", vg.XUSB_BUTTON.XUSB_GAMEPAD_A)
+            set_btn("b1", BTN_MAP[args.shutter_key])
             set_btn("b3", vg.XUSB_BUTTON.XUSB_GAMEPAD_X)
-            set_btn("b4", vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_SHOULDER)
+            if args.aux_key != "off":
+                set_btn("b4", BTN_MAP[args.aux_key])
+            elif st["b4"] and not prev_b.get("b4", 0):
+                gamepad.release_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_RIGHT_SHOULDER)
+            if args.aux_key == "off":
+                prev_b["b4"] = st["b4"]
 
             if st["b2"]:
                 gamepad.right_trigger(255)
             else:
                 gamepad.right_trigger(0)
 
+            # ---- 波轮（云台拨轮）
+            # 回中弹簧：中间 → 上 是边沿，只在那一刻触发一次。
+            # LT 是模拟量，持续 255 会被游戏当成「一直按住」，
+            # 所以切换模式下必须做成短脉冲：快速 255 再归 0。
             cam = st["camera"]
-            if cam > 32000:
-                gamepad.press_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_UP)
-                gamepad.release_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_DOWN)
-            elif cam < -32000:
-                gamepad.release_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_UP)
-                gamepad.press_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_DOWN)
+            if cam > WHEEL_UP_TH:
+                cur_zone = "up"
+            elif cam < WHEEL_DOWN_TH:
+                cur_zone = "down"
             else:
-                gamepad.release_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_UP)
-                gamepad.release_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_DOWN)
+                cur_zone = "mid"
+
+            # ---- 波轮向下
+            if args.wheel_down == "off":
+                pass
+            elif args.wheel_down == "lt":
+                gamepad.left_trigger(255)
+            else:
+                if cur_zone == "down":
+                    gamepad.press_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_DOWN)
+                else:
+                    gamepad.release_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_DOWN)
+
+            # ---- 波轮向上
+            if args.wheel_up == "off":
+                pass
+            elif args.wheel_up == "dpad-up":
+                if cur_zone == "up":
+                    gamepad.press_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_UP)
+                else:
+                    gamepad.release_button(vg.XUSB_BUTTON.XUSB_GAMEPAD_DPAD_UP)
+            else:
+                # lt
+                if args.wheel_trigger == "hold":
+                    # 按住模式：拨上就一直开镜，回中就收镜
+                    gamepad.left_trigger(255 if cur_zone == "up" else 0)
+                else:
+                    # 切换模式：只在中 → 上的边沿发一次脉冲
+                    if cur_zone == "up" and prev_wheel_zone != "up":
+                        pulse_until = now + args.wheel_pulse_ms / 1000.0
+                    if pulse_until and now < pulse_until:
+                        gamepad.left_trigger(255)
+                    else:
+                        gamepad.left_trigger(0)
+
+            prev_wheel_zone = cur_zone
 
             gamepad.update()
 
