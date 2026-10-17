@@ -7,6 +7,9 @@
 A Windows tool that makes the RC-N3 appear as an Xbox 360 controller over USB, so FPV
 simulators and drone games accept it.
 
+> 当前版本 / Current version: **v1.1.0** —— 云台波轮可触发左扳机 LT 开镜，按键映射可配置。
+> This release adds wheel-to-LT ADS toggle and configurable button mapping.
+
 ---
 
 ## 目录 / Contents
@@ -19,9 +22,11 @@ simulators and drone games accept it.
 - [低延迟版本改了什么](#低延迟版本改了什么--what-changed-in-the-low-latency-version)
 - [蔚蓝无尽实测案例](#蔚蓝无尽实测案例--verified-case-azure-infinity)
 - [按键映射实测结果](#按键映射实测结果--measured-button-map)
+- [用波轮开镜](#用波轮开镜--wheel-to-lt-ads)
 - [参数调校](#参数调校--tuning)
 - [已知限制](#已知限制--known-limitations)
 - [常见问题](#常见问题--faq)
+- [更新日志](#更新日志--changelog)
 
 ---
 
@@ -293,6 +298,16 @@ python scripts/main_fast.py --rate 2
 | `--deadzone 300` | 消除中位漂移 | kill centre drift |
 | `--scale 0.8` | 降低灵敏度 | lower sensitivity |
 | `-p COM6` | 手动指定串口 | pin the serial port |
+| `--wheel-up lt` | 波轮拨上：`lt` 开镜（默认）/ `dpad-up` 旧行为 / `off` 关闭 | wheel up: LT / D-pad up / off |
+| `--wheel-down dpad-down` | 波轮拨下：`dpad-down` 切倍率（默认）/ `lt` / `off` | wheel down: D-pad down / LT / off |
+| `--wheel-trigger toggle` | `toggle` 边缘脉冲 / `hold` 按住持续 | toggle pulse or hold |
+| `--wheel-pulse-ms 90` | 脉冲持续毫秒，仅 toggle 生效 | pulse length in ms, toggle only |
+| `--shutter-key a` | 拍摄键映射：`a` / `b` / `x` / `y` / `off` | shutter key mapping |
+| `--aux-key rb` | Fn 键映射：`lb` / `rb` / `y` / `back` / `off` | Fn key mapping |
+
+参数可以叠加传进 `run_bridge.bat`，例如
+`run_bridge.bat --wheel-trigger hold --wheel-pulse-ms 200`。
+Flags can be appended to `run_bridge.bat`, which forwards them via `%*`.
 
 ### 4. 启动游戏 / Launch the game
 
@@ -462,10 +477,13 @@ data into the virtual gamepad. Close the window and the gamepad is gone.
 
 同一台机器上装了**两个 Python**。Bash 里的 `python` 指向另一个没装依赖的环境，
 一运行就 `ModuleNotFoundError: No module named 'serial'`，窗口一闪即消。
-`run_bridge.bat` 里因此**硬编码了 Python 的绝对路径**。
+`run_bridge.bat` 里因此**优先使用 Python 3.12 的绝对路径**——该文件不存在时才
+回退到 PATH 里的 `python`。`run_bridge.ps1` 才会依次遍历 3.12/3.11/3.10/3.9。
 
 Two Pythons on one machine. The one on PATH had no dependencies, so the script
-died instantly. `run_bridge.bat` now **hardcodes the absolute Python path**.
+died instantly. `run_bridge.bat` therefore **prefers the absolute Python 3.12 path**
+and falls back to `python` on PATH only when that file is missing.
+`run_bridge.ps1` is the one that probes 3.12/3.11/3.10/3.9 in turn.
 
 **③ 延迟近 1 秒 / Latency near one second**
 
@@ -499,10 +517,14 @@ project. When you hit one, **power-cycle the remote** rather than debugging the 
 
 **⑥ 顺带一提 / Worth knowing**
 
-`run_bridge.bat` 会**先自动清理残留的 `main_fast.py` 进程**再启动。
-旧进程会占住 COM6，导致新进程起不来——这是「双击没反应」的常见原因。
-The setup script kills stale `main_fast.py` processes first. A leftover process
-holds COM6 and blocks the new one — a common reason for "nothing happens".
+如果启动时报串口被占用（`PermissionError` / `拒绝访问`），说明上一次的
+`main_fast.py` 进程还活着。打开任务管理器结束残留的 `python.exe` 后重试。
+`run_bridge.bat` 本身**不做进程清理**——它只负责找 Python 并启动脚本。
+
+If startup fails with a serial-port error (`PermissionError` / access denied), a
+previous `main_fast.py` is still alive. Kill the leftover `python.exe` in Task
+Manager and retry. `run_bridge.bat` itself **does no process cleanup** — it only
+locates Python and launches the script.
 
 ### 结论 / Verdict
 
@@ -515,16 +537,24 @@ latency is fine for racing.
 ## 按键映射实测结果 / Measured Button Map
 
 上游文档没有写明 `b1`–`b4` 对应哪个物理键。用 `scripts/identify_buttons.py`
-逐键实测，结果如下 / The upstream docs never state which physical key each bitmask
-belongs to. Measured with `scripts/identify_buttons.py`:
+逐键实测，再以游戏内实际效果校正，结果如下 / The upstream docs never state which
+physical key each bitmask belongs to. Measured with `scripts/identify_buttons.py`
+and corrected against in-game behaviour:
 
-| 位掩码 Mask | 变量 | 物理键 Physical key | 映射到 Mapped to |
-|---|---|---|---|
-| `0x1060` | b1 | **Fn 键** | Xbox **A** |
-| `0x1080` | b2 | **切换键** | Xbox **RT**（右扳机） |
-| `0x1004` | b3 | **拍摄键** | Xbox **X** |
-| `0x1002` | b4 | **返航键** | Xbox **RB** |
-| `0x1001` | — | **未登记**（上游代码未使用） | — |
+| 位掩码 Mask | 变量 | 物理键 Physical key | 映射到 Mapped to | 游戏内效果 In-game |
+|---|---|---|---|---|
+| `0x1060` | b1 | **拍摄键** | Xbox **A** | 跳跃 Jump |
+| `0x1080` | b2 | **返航键** | Xbox **RT**（右扳机） | 开火 Fire |
+| `0x1004` | b3 | **模式切换键** | Xbox **X** | 换弹 Reload |
+| `0x1002` | b4 | **Fn 键** | Xbox **RB** | 未绑定 Unbound |
+| `0x1001` | — | **未登记**（上游代码未使用） | — | — |
+
+> ⚠️ **首次识别时这张表填错了四行。** 2026-10-04 用识别工具逐个按物理键填表，
+> 结果四组全部错位；10-07 在《三角洲行动》里实测才发现。**以游戏内实际效果为准。**
+>
+> ⚠️ **The first pass filled all four rows wrong.** The identification tool needs
+> each key held individually; a mis-press shifted every entry. Corrected in-game on
+> 10-07. **Trust observed behaviour, not the tool's key labels.**
 
 原始数据见 `docs/button_map.txt`。
 Raw data in `docs/button_map.txt`.
@@ -544,10 +574,52 @@ RC-N3 用 **Mode 2 美国手**布局，通道顺序 AETR：
 
 | 遥控器 | 虚拟手柄 | 说明 |
 |---|---|---|
-| 云台波轮（左上角） | 十字键 **上 / 下** | 只映射上下，**没有左右**；开关量不是连续量 |
+| 云台波轮拨**上** | **LT**（左扳机） | 开镜。默认 toggle 模式下发一次 90 ms 脉冲 |
+| 云台波轮拨**下** | 十字键 **下** | 切换瞄具 / 倍率 |
 
-**未映射 / Not mapped:** LT、LB、Y、B 四个 Xbox 键没有对应的 RC-N3 按键。
+波轮只映射上下，**没有左右**；它是开关量不是连续量。
+The wheel maps up/down only — **no left/right**; it is a switch, not a continuous axis.
+
+**未映射 / Not mapped:** LB、Y、B 三个 Xbox 键没有对应的 RC-N3 按键。
 在游戏里可以自己把需要的动作绑到 A / X / RB / RT 上。
+LB, Y and B are unused. Bind whatever you like to A / X / RB / RT in-game.
+
+---
+
+## 用波轮开镜 / Wheel-to-LT ADS
+
+云台波轮拨上会发**左扳机 LT**，对应游戏里的「瞄准」。两种模式要和游戏里的开镜设置配对：
+
+| `--wheel-trigger` | 游戏里「瞄准」设成 | 行为 |
+|---|---|---|
+| `toggle`（默认） | **切换**开镜 | 拨上发一次 90 ms LT 脉冲，游戏自己保持开镜；再拨一次关镜 |
+| `hold` | **按住**开镜 | 拨上时持续按住 LT，波轮回中就松开 |
+
+**前提：游戏里必须把「瞄准」绑定到 LT。** 如果那一行是空的，代码发再多 LT 也收不到——
+这是「波轮拨上没反应」最常见的原因。Delta Force 里检查「设置 → 控制 → 瞄准」。
+
+**Precondition: bind "Aim" to LT in the game.** If that binding is empty, the
+bridge can send LT forever and nothing happens. This is the most common cause of
+"wheel up does nothing".
+
+### 调参 / Tuning
+
+| 现象 | 处理 |
+|---|---|
+| 脉冲太短，游戏没识别到 | `--wheel-pulse-ms 200` |
+| 游戏里是「按住开镜」 | `--wheel-trigger hold` |
+| 想回到旧行为（十字键上） | `--wheel-up dpad-up` |
+| 不想要开镜 | `--wheel-up off` |
+
+### 一个物理限制 / A physical constraint
+
+波轮是**弹簧回中**的。开镜后想切倍率，必须**先松手让波轮回中**，再向下拨——
+否则从「上」直接掰到「下」会跨过中位，触发逻辑看到的是同一次动作。
+这不是软件缺陷，是回中结构决定的。
+
+The wheel springs back to centre. After aiming, **release it so it returns to
+centre**, then push down. Going straight from up to down crosses the centre
+without ever reporting a neutral state.
 
 ---
 
@@ -664,17 +736,17 @@ DJI Assistant 2 may be holding the port — kill stale processes with
 Use `run_bridge.ps1` for a PowerShell-native version.
 
 **Q: 会不会和别的 Python 打架？**
-**A: 会，所以启动器硬编码了绝对路径。** 本项目在开发时就踩过这个坑：同一台机器
+**A: 会，所以启动器优先用固定路径。** 本项目在开发时就踩过这个坑：同一台机器
 装了两个 Python，Bash 里的那个没装依赖，脚本一运行就 `ModuleNotFoundError`，
-窗口一闪即消。`run_bridge.bat` 依次尝试 Python312/311/310/39 的固定安装路径，
-都找不到才退回 PATH 里的 `python`。
+窗口一闪即消。`run_bridge.bat` 固定使用 Python 3.12 的安装路径，该文件不存在时
+才回退到 PATH 里的 `python`；`run_bridge.ps1` 才会依次尝试 3.12/3.11/3.10/3.9。
 
 **Q: Will it conflict with another Python?**
-**A: It can, so the launcher hardcodes absolute paths.** This was a real bug during
+**A: It can, so the launcher prefers a fixed path.** This was a real bug during
 development: two Pythons on one machine, the one on PATH had no dependencies, and
 the script died with `ModuleNotFoundError` the instant it started. `run_bridge.bat`
-tries the fixed install paths for 3.12/3.11/3.10/3.9 first and only falls back to
-`python` on PATH.
+uses the Python 3.12 install path and falls back to `python` on PATH only if that
+file is missing; `run_bridge.ps1` is the one that probes 3.12/3.11/3.10/3.9.
 
 **Q: 游戏里选 Xbox 360 没用？**
 **A: 顺序反了。** 游戏只在启动时扫手柄。先开桥接窗口，再启动游戏。
@@ -698,6 +770,39 @@ rates 和 expo 全部生效。RC-N3 + 虚拟手柄适合入门练手，天赋上
 transmitter such as a Radiomaster Boxer or Zorro. That is the "transmitter channel"
 the game means, where rates and expo actually apply. RC-N3 plus a virtual gamepad
 is a good trainer with a low ceiling.
+
+---
+
+## 更新日志 / Changelog
+
+### v1.1.0 — 2026-10-17
+
+**新增**
+
+- 云台波轮拨上映射**左扳机 LT**，用来开镜。支持 `toggle`（边缘脉冲，配游戏「切换开镜」）
+  和 `hold`（按住，配游戏「按住开镜」）两种模式。
+- `--wheel-up` / `--wheel-down` / `--wheel-trigger` / `--wheel-pulse-ms` 四个波轮参数。
+- `--shutter-key` / `--aux-key`，拍摄键与 Fn 键的映射可以改。
+- 启动时打印配置摘要，参数是否生效一眼可见。
+
+**修复**
+
+- `run_bridge.bat` 从 217 行简化为 6 行，用 `%*` 透传参数。原版硬编码 `--rate 2`，
+  新增的波轮参数根本传不进去。
+- `run_bridge.bat` 的 Python 路径回退逻辑是死代码（`if not defined PY` 恒为假），
+  改为 `if not exist`。没装 Python 3.12 的机器现在能回退到 PATH。
+
+**文档**
+
+- 按键映射表整表重写。原表是 2026-10-04 首次识别的错误结果，四组物理键全部错位，
+  已按 10-07 游戏内实测更正。
+- 补充 6 个新参数说明，「参数调校」前新增「用波轮开镜」一节。
+- 删掉「bat 会清理残留进程」的过时描述。
+
+### v1.0.0 — 2026-10-06
+
+- 低延迟重写：延迟从约 1 秒降到 **0.4–5 ms**。
+- 附带 `check_env.py`（8 项环境体检）与 `identify_buttons.py`（按键识别）。
 
 ---
 
